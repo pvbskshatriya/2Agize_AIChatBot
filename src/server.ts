@@ -43,7 +43,7 @@ app.use(
       callback(null, isAllowedOrigin(origin));
     },
     methods: ["GET", "POST", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Medusa-Cart-Id"],
   })
 );
 app.use(express.json({ limit: "256kb" }));

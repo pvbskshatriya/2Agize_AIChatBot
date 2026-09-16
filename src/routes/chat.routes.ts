@@ -35,6 +35,7 @@ chatRouter.post("/chat", async (req, res) => {
   const conversationId = parsed.data.conversationId || randomUUID();
   const token = bearerToken(req.header("authorization"));
   const auth = await resolveAuthContext(token, requestId);
+  const cartId = req.header("x-medusa-cart-id")?.trim() || undefined;
 
   log("chat.request", {
     requestId,
@@ -42,17 +43,20 @@ chatRouter.post("/chat", async (req, res) => {
     hasToken: Boolean(token),
     authenticated: Boolean(auth.customerId),
     hasCompany: Boolean(auth.companyId),
+    hasCart: Boolean(cartId),
   });
 
   const result = await chat(parsed.data.message, {
     requestId,
     conversationId,
     ...auth,
+    cartId,
   });
 
   log("chat.response", {
     requestId,
     conversationId: result.conversationId,
+    hasCart: Boolean(result.cartId),
   });
 
   res.json(result);

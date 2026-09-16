@@ -178,7 +178,21 @@ export async function chat(
   context: RequestContext
 ): Promise<ChatResponseBody> {
   const conversation = getOrCreateConversation(context.conversationId);
+  if (!context.cartId) {
+    context.cartId = conversation.cartId;
+  }
   conversation.messages.push({ role: "user", content: message });
+
+  const toResponse = (answer: string): ChatResponseBody => {
+    conversation.cartId = context.cartId;
+    conversation.messages.push({ role: "assistant", content: answer });
+    conversationStore.upsert(conversation);
+    return {
+      answer,
+      conversationId: conversation.id,
+      cartId: context.cartId,
+    };
+  };
 
   try {
     const contents: Content[] = [
@@ -241,10 +255,7 @@ export async function chat(
         ? "Samahani, sikuweza kutoa jibu sasa. Tafadhali jaribu tena."
         : "I could not produce a response. Please try again.");
 
-    conversation.messages.push({ role: "assistant", content: answer });
-    conversationStore.upsert(conversation);
-
-    return { answer, conversationId: conversation.id };
+    return toResponse(answer);
   } catch (error) {
     log("llm.error", {
       requestId: context.requestId,
@@ -262,10 +273,7 @@ export async function chat(
           : undefined,
     });
 
-    const answer = llmFailureMessage(message, error);
-    conversation.messages.push({ role: "assistant", content: answer });
-    conversationStore.upsert(conversation);
-    return { answer, conversationId: conversation.id };
+    return toResponse(llmFailureMessage(message, error));
   }
 }
 

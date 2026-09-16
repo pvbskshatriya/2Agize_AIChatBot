@@ -2,7 +2,7 @@ import { config } from "../config.js";
 import { log } from "../logging.js";
 import { MedusaHttpError, medusaErrorFromStatus } from "./errors.js";
 
-type HttpMethod = "GET" | "POST";
+type HttpMethod = "GET" | "POST" | "DELETE";
 
 type RequestOptions = {
   method?: HttpMethod;
@@ -116,6 +116,76 @@ export class MedusaClient {
     return this.request("/store/regions", { requestId: options.requestId });
   }
 
+  async getCart(
+    cartId: string,
+    query: Record<string, unknown> = {},
+    options: { token?: string; requestId?: string } = {}
+  ): Promise<{ cart: unknown }> {
+    return this.request(`/store/carts/${encodeURIComponent(cartId)}`, {
+      query,
+      token: options.token,
+      requestId: options.requestId,
+    });
+  }
+
+  async createCart(
+    body: Record<string, unknown>,
+    options: { token?: string; requestId?: string } = {}
+  ): Promise<{ cart: unknown }> {
+    return this.request("/store/carts", {
+      method: "POST",
+      body,
+      token: options.token,
+      requestId: options.requestId,
+    });
+  }
+
+  async addLineItem(
+    cartId: string,
+    body: { variant_id: string; quantity: number },
+    options: { token?: string; requestId?: string } = {}
+  ): Promise<{ cart: unknown }> {
+    return this.request(
+      `/store/carts/${encodeURIComponent(cartId)}/line-items`,
+      {
+        method: "POST",
+        body,
+        token: options.token,
+        requestId: options.requestId,
+      }
+    );
+  }
+
+  async deleteLineItem(
+    cartId: string,
+    lineId: string,
+    options: { token?: string; requestId?: string } = {}
+  ): Promise<unknown> {
+    return this.request(
+      `/store/carts/${encodeURIComponent(cartId)}/line-items/${encodeURIComponent(lineId)}`,
+      {
+        method: "DELETE",
+        token: options.token,
+        requestId: options.requestId,
+      }
+    );
+  }
+
+  async transferCart(
+    cartId: string,
+    options: { token?: string; requestId?: string } = {}
+  ): Promise<unknown> {
+    return this.request(
+      `/store/carts/${encodeURIComponent(cartId)}/customer`,
+      {
+        method: "POST",
+        body: {},
+        token: options.token,
+        requestId: options.requestId,
+      }
+    );
+  }
+
   private async request<T>(path: string, options: RequestOptions = {}): Promise<T> {
     const url = `${this.baseUrl}${path}${toQuery(options.query)}`;
     const started = Date.now();
@@ -151,7 +221,8 @@ export class MedusaClient {
         throw medusaErrorFromStatus(response.status);
       }
 
-      const data = (await response.json()) as T;
+      const text = await response.text();
+      const data = (text ? JSON.parse(text) : {}) as T;
       log("medusa.http", {
         requestId: options.requestId,
         path,
