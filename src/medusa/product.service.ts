@@ -75,6 +75,14 @@ function mapSearchProduct(product: StoreProduct) {
     price,
     currency,
     inStock: (product.variants ?? []).some(variantInStock),
+    variants: (product.variants ?? []).slice(0, 8).map((variant) => ({
+      id: variant.id,
+      title: variant.title,
+      sku: variant.sku,
+      price: variant.calculated_price?.calculated_amount ?? null,
+      currency: variant.calculated_price?.currency_code ?? currency,
+      inStock: variantInStock(variant),
+    })),
   };
 }
 

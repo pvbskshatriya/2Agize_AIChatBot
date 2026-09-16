@@ -3,7 +3,10 @@ export type ToolName =
   | "get_product_details"
   | "get_customer_orders"
   | "get_order_details"
-  | "get_company_summary";
+  | "get_company_summary"
+  | "get_cart"
+  | "add_to_cart"
+  | "remove_cart_item";
 
 export type AuthContext = {
   customerId?: string;
@@ -15,6 +18,7 @@ export type AuthContext = {
 export type RequestContext = AuthContext & {
   requestId: string;
   conversationId: string;
+  cartId?: string;
 };
 
 export type ChatMessage = {
@@ -28,6 +32,7 @@ export type Conversation = {
   previousResponseId?: string;
   createdAt: number;
   updatedAt: number;
+  cartId?: string;
 };
 
 export type ToolResult =
@@ -57,4 +62,5 @@ export type ChatRequestBody = {
 export type ChatResponseBody = {
   answer: string;
   conversationId: string;
+  cartId?: string;
 };

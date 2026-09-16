@@ -1,4 +1,5 @@
 import type { FunctionTool } from "openai/resources/responses/responses";
+import { cartToolHandlers } from "../tools/cart.tools.js";
 import { companyToolHandlers } from "../tools/company.tools.js";
 import { customerToolHandlers } from "../tools/customer.tools.js";
 import { orderToolHandlers } from "../tools/order.tools.js";
@@ -11,6 +12,9 @@ export const toolHandlers: Record<ToolName, ToolHandler> = {
   get_customer_orders: customerToolHandlers.get_customer_orders!,
   get_order_details: orderToolHandlers.get_order_details!,
   get_company_summary: companyToolHandlers.get_company_summary!,
+  get_cart: cartToolHandlers.get_cart!,
+  add_to_cart: cartToolHandlers.add_to_cart!,
+  remove_cart_item: cartToolHandlers.remove_cart_item!,
 };
 
 export const openaiTools: FunctionTool[] = [
@@ -115,6 +119,63 @@ export const openaiTools: FunctionTool[] = [
       },
     },
   },
+  {
+    type: "function",
+    name: "get_cart",
+    strict: false,
+    description:
+      "Get or create the customer's current storefront cart and list line items. Cart identity comes from the browser session. Do not invent a cart id.",
+    parameters: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        refresh: {
+          type: "boolean",
+          description: "Ignored. Always reads the current session cart.",
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    name: "add_to_cart",
+    strict: false,
+    description:
+      "Add a product variant to the current storefront cart. Use a variant id from search_products or get_product_details. If several variants match, ask the customer first.",
+    parameters: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        variantId: {
+          type: "string",
+          description: "Medusa variant id, for example variant_123.",
+        },
+        quantity: {
+          type: "number",
+          description: "How many units to add. Default 1.",
+        },
+      },
+      required: ["variantId"],
+    },
+  },
+  {
+    type: "function",
+    name: "remove_cart_item",
+    strict: false,
+    description:
+      "Remove one line from the current storefront cart. Use a lineId returned by get_cart or add_to_cart, not a product name.",
+    parameters: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        lineId: {
+          type: "string",
+          description: "Cart line item id, for example item_123.",
+        },
+      },
+      required: ["lineId"],
+    },
+  },
 ];
 
 export const geminiFunctionDeclarations = openaiTools.map((tool) => ({
@@ -146,6 +207,7 @@ export async function executeTool(
 
   if (args && typeof args === "object") {
     delete args.customerId;
+    delete args.cartId;
   }
 
   return handler(args, context);
