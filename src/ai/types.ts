@@ -59,8 +59,24 @@ export type ChatRequestBody = {
   conversationId?: string;
 };
 
+export type OrderCard = {
+  orderId: string;
+  medusaId: string;
+  title: string;
+  createdAt: string | null;
+  thumbnail: string | null;
+  status: string;
+};
+
+export type OrdersUi = {
+  heading: string;
+  orders: OrderCard[];
+  hasMore: boolean;
+};
+
 export type ChatResponseBody = {
   answer: string;
   conversationId: string;
   cartId?: string;
+  ordersUi?: OrdersUi;
 };

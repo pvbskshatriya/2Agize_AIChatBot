@@ -20,7 +20,7 @@ export const getCustomerOrdersTool: ToolHandler = async (args, context) => {
   if (!parsed.success) {
     return invalid(parsed.error);
   }
-  return listCustomerOrders(context, parsed.data.limit ?? 10);
+  return listCustomerOrders(context, parsed.data.limit ?? 7);
 };
 
 export const customerToolHandlers: Partial<Record<ToolName, ToolHandler>> = {
