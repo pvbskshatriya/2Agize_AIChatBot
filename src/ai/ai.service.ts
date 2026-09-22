@@ -9,7 +9,9 @@ import { SYSTEM_PROMPT } from "./prompts.js";
 import type {
   ChatResponseBody,
   Conversation,
+  OrdersUi,
   RequestContext,
+  ToolResult,
 } from "./types.js";
 
 // --- OpenAI (keep for later) ---
@@ -125,6 +127,35 @@ function functionCallsOf(
   );
 }
 
+function ordersUiFromTool(
+  name: string | undefined,
+  result: ToolResult
+): OrdersUi | undefined {
+  if (name !== "get_customer_orders" || !result.ok) {
+    return undefined;
+  }
+  const data = result.data as {
+    heading?: string;
+    orders?: OrdersUi["orders"];
+    hasMore?: boolean;
+  };
+  if (!Array.isArray(data.orders) || data.orders.length === 0) {
+    return undefined;
+  }
+  return {
+    heading: data.heading || "Orders in the last 3 months",
+    orders: data.orders.map((order) => ({
+      orderId: order.orderId,
+      medusaId: order.medusaId,
+      title: order.title,
+      createdAt: order.createdAt,
+      thumbnail: order.thumbnail,
+      status: order.status,
+    })),
+    hasMore: Boolean(data.hasMore),
+  };
+}
+
 function isGeminiRateLimit(error: unknown): boolean {
   const status = (error as { status?: number }).status;
   const text = error instanceof Error ? error.message : String(error);
@@ -183,7 +214,10 @@ export async function chat(
   }
   conversation.messages.push({ role: "user", content: message });
 
-  const toResponse = (answer: string): ChatResponseBody => {
+  const toResponse = (
+    answer: string,
+    ordersUi?: OrdersUi
+  ): ChatResponseBody => {
     conversation.cartId = context.cartId;
     conversation.messages.push({ role: "assistant", content: answer });
     conversationStore.upsert(conversation);
@@ -191,6 +225,7 @@ export async function chat(
       answer,
       conversationId: conversation.id,
       cartId: context.cartId,
+      ordersUi,
     };
   };
 
@@ -201,6 +236,7 @@ export async function chat(
     ];
 
     let response = await generateGemini(contents);
+    let ordersUi: OrdersUi | undefined;
 
     for (let round = 0; round < config.maxToolRounds; round += 1) {
       const calls = functionCallsOf(response);
@@ -216,6 +252,10 @@ export async function chat(
             JSON.stringify(call.args ?? {}),
             context
           );
+          const extracted = ordersUiFromTool(call.name, result);
+          if (extracted) {
+            ordersUi = extracted;
+          }
           log("tool.invoked", {
             requestId: context.requestId,
             conversationId: conversation.id,
@@ -255,7 +295,7 @@ export async function chat(
         ? "Samahani, sikuweza kutoa jibu sasa. Tafadhali jaribu tena."
         : "I could not produce a response. Please try again.");
 
-    return toResponse(answer);
+    return toResponse(answer, ordersUi);
   } catch (error) {
     log("llm.error", {
       requestId: context.requestId,

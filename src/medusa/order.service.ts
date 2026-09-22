@@ -6,7 +6,8 @@ type OrderItem = {
   title?: string;
   subtitle?: string | null;
   quantity?: number;
-  product?: { title?: string };
+  thumbnail?: string | null;
+  product?: { title?: string; thumbnail?: string | null };
   variant?: { title?: string };
 };
 
@@ -36,7 +37,10 @@ type StoreOrder = {
 };
 
 const ORDER_FIELDS =
-  "id,display_id,status,payment_status,fulfillment_status,total,currency_code,created_at,*items,*items.variant,*items.product,*shipping_address,*shipping_methods,*fulfillments,+metadata";
+  "id,display_id,status,payment_status,fulfillment_status,total,currency_code,created_at,*items,+items.thumbnail,*items.variant,*items.product,*shipping_address,*shipping_methods,*fulfillments,+metadata";
+
+const ORDERS_UI_LIMIT = 5;
+const ORDERS_MONTHS = 3;
 
 function isHiddenSplitOrder(order: StoreOrder): boolean {
   const meta = order.metadata || {};
@@ -50,10 +54,26 @@ function publicOrderId(order: StoreOrder): string {
   return order.id;
 }
 
+function firstItemTitle(order: StoreOrder): string {
+  const items = order.items ?? [];
+  const first = items[0]?.product?.title || items[0]?.title || "Order";
+  if (items.length > 1) {
+    return `${first} + ${items.length - 1} more`;
+  }
+  return first;
+}
+
+function firstItemThumbnail(order: StoreOrder): string | null {
+  const item = order.items?.[0];
+  return item?.thumbnail || item?.product?.thumbnail || null;
+}
+
 function mapOrderSummary(order: StoreOrder) {
   return {
     orderId: publicOrderId(order),
     medusaId: order.id,
+    title: firstItemTitle(order),
+    thumbnail: firstItemThumbnail(order),
     status: order.status ?? "unknown",
     paymentStatus: order.payment_status ?? "unknown",
     fulfillmentStatus: order.fulfillment_status ?? "unknown",
@@ -65,6 +85,20 @@ function mapOrderSummary(order: StoreOrder) {
       quantity: item.quantity ?? 1,
     })),
   };
+}
+
+function startOfOrdersWindow(months = ORDERS_MONTHS): Date {
+  const start = new Date();
+  start.setMonth(start.getMonth() - months);
+  start.setHours(0, 0, 0, 0);
+  return start;
+}
+
+function isInOrdersWindow(order: StoreOrder, start: Date): boolean {
+  if (!order.created_at) {
+    return false;
+  }
+  return new Date(order.created_at) >= start;
 }
 
 function formatAddress(address?: ShippingAddress | null): string | null {
@@ -125,7 +159,7 @@ function matchesOrderRef(order: StoreOrder, rawId: string): boolean {
 
 export async function listCustomerOrders(
   context: RequestContext,
-  limit = 10
+  limit = ORDERS_UI_LIMIT
 ): Promise<ToolResult> {
   if (!context.customerToken) {
     return {
@@ -136,9 +170,11 @@ export async function listCustomerOrders(
   }
 
   try {
+    const previewLimit = Math.min(Math.max(limit, 1), ORDERS_UI_LIMIT);
+    const windowStart = startOfOrdersWindow();
     const { orders } = await medusaClient.getOrders(
       {
-        limit: Math.max(limit * 3, 30),
+        limit: 50,
         offset: 0,
         order: "-created_at",
         fields: ORDER_FIELDS,
@@ -146,12 +182,21 @@ export async function listCustomerOrders(
       { token: context.customerToken, requestId: context.requestId }
     );
 
-    const visible = ((orders ?? []) as StoreOrder[])
+    const inWindow = ((orders ?? []) as StoreOrder[])
       .filter((order) => !isHiddenSplitOrder(order))
-      .slice(0, limit)
-      .map(mapOrderSummary);
+      .filter((order) => isInOrdersWindow(order, windowStart));
 
-    return { ok: true, data: { orders: visible } };
+    const preview = inWindow.slice(0, previewLimit).map(mapOrderSummary);
+
+    return {
+      ok: true,
+      data: {
+        heading: "Orders in the last 3 months",
+        orders: preview,
+        hasMore: inWindow.length > preview.length,
+        totalInPeriod: inWindow.length,
+      },
+    };
   } catch (error) {
     return toToolError(error);
   }

@@ -67,7 +67,7 @@ export const openaiTools: FunctionTool[] = [
     name: "get_customer_orders",
     strict: false,
     description:
-      "List recent orders for the authenticated customer. The backend ignores any customerId argument and uses the signed-in session.",
+      "List the authenticated customer's orders from the last 3 months. Returns a short preview (default 5). The app shows cards; do not list every order in text. Identity comes from the signed-in session.",
     parameters: {
       type: "object",
       additionalProperties: false,
